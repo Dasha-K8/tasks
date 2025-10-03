@@ -5,18 +5,19 @@ base_url = "https://api.tenderbot.kz/api/lots"
 keyword = "компьютер"
 page = 1
 
-payload = {
-    "search_tags": [{"text": keyword, "tiClasses": ["ti-valid"]}],
-    "searchstr": keyword
-}
 
 with open("practice1.csv", "w", newline="", encoding="utf-8") as file:
     writer = csv.writer(file)
     writer.writerow(["id", "name_ru"])
 
     while True:
-        params = {"page": page}
-        response = requests.post(base_url, params=params, json=payload)
+
+        payload = {
+            "search_tags": [{"text": keyword, "tiClasses": ["ti-valid"]}],
+            "searchstr": keyword,
+            "page": page
+        }
+        response = requests.post(base_url, json=payload)
         data = response.json()
 
         lots = data['aData']['lots']['data']
@@ -34,6 +35,10 @@ with open("practice1.csv", "w", newline="", encoding="utf-8") as file:
         page += 1
 
 print("All lots with id and name_ru are saved in the practice1.csv file")
+
+
+
+
 
 
 
