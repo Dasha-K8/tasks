@@ -1,0 +1,20 @@
+version: '3.8'
+
+services:
+  mongo:
+    image: mongo:6.0
+    container_name: mongo
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+
+  python-app:
+    build: .
+    container_name: python-app
+    depends_on:
+      - mongo
+    environment:
+      MONGO_URI: "mongodb://mongo:27017/purchases"
+    restart: "no"
+
+
