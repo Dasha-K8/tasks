@@ -1,14 +1,12 @@
 import requests
 from pymongo import MongoClient
-import os
-import time
 
+client = MongoClient(host='mongo_db', port=27017)
+db_practice = client['db_practice']
 
-time.sleep(5)
-mongo_uri = os.getenv("MONGO_URI", "mongodb://mongo:27017/purchases")
-client = MongoClient(mongo_uri)
-db = client.purchases
-collection = db.lots
+lots_collection = db_practice['lots_collection']
+documents = []
+
 
 base_url = "https://api.tenderbot.kz/api/lots"
 keyword = "компьютер"
@@ -60,13 +58,14 @@ payload = {
 response = requests.post(base_url, json=payload)
 data = response.json()
 
+
 lots = data['aData']['lots']['data']
 
 for lot in lots:
-    document = {
+    documents.append({
         "id": lot.get("id"),
         "name_ru": lot.get("name_ru")
-    }
-    collection.insert_one(document)
+    })
+lots_collection.insert_many(documents)
 
 print("All lots have been recorded in the MongoDB database.")
