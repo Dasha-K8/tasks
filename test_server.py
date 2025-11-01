@@ -4,14 +4,21 @@ from jsonschema import validate, ValidationError
 app = Flask(__name__)
 
 clients = {}
-client_shema = {
+client_schema = {
       "type": "object",
       "properties": {
         "name": { "type": "string" },
-        "age": { "type": "integer", "minimum": 18, "maximum": 100 },
-        "tel": { "type": "integer", "minimum": 10000000000, "maximum": 99999999999 }
+        "age": { "type": "integer", "minimum": 18 },
+        "tel": { "type": "string",
+                 "pattern": r"^(\+7|8)[\s-]?\(?\d{3}\)?[\s-]?\d{3}[\s-]?\d{2}[\s-]?\d{2}$"}
       },
       "required": ["name", "age", "tel"],
+      "additionalProperties": False
+    }
+client_patch_schema = {
+      "type": "object",
+      "properties": client_schema["properties"],
+      "minProperties": 1,
       "additionalProperties": False
     }
 
@@ -27,7 +34,7 @@ def create_client():
     data = request.json
 
     try:
-        validate(data, client_shema)
+        validate(data, client_schema)
     except ValidationError as e:
         return jsonify({"error": f"Validation error: {e.message}"}), 400
 
@@ -65,28 +72,53 @@ def delete_client(client_id):
         return jsonify({"error": "There is no client with this ID"}), 404
 
 
+@app.route('/clients/<int:client_id>', methods=['PUT'])
+def update_client(client_id):
+    client = clients.get(client_id)
+    if not client:
+        return jsonify({"error": "There is no client with this ID"}), 404
+
+    if not request.is_json:
+        return jsonify({"error": "Request must be in JSON format"}), 400
+
+    data = request.json
+    try:
+        validate(data, client_schema)
+    except ValidationError as e:
+        return jsonify({"error": f"Validation error: {e.message}"}), 400
+
+    clients[client_id].update({
+        "name": data["name"],
+        "age": data["age"],
+        "tel": data["tel"]
+    })
+    return jsonify({
+        "message": "Client has been updated successfully",
+    }), 200
+
+
+@app.route('/clients/<int:client_id>', methods=['PATCH'])
+def patch_client(client_id):
+    client = clients.get(client_id)
+    if not client:
+        return jsonify({"error": "There is no client with this ID"}), 404
+
+    if not request.is_json:
+        return jsonify({"error": "Request must be in JSON format"}), 400
+
+    data = request.json
+    try:
+        validate(data, client_patch_schema)
+    except ValidationError as e:
+        return jsonify({"error": f"Validation error: {e.message}"}), 400
+
+    required_fields = ["name", "age", "tel"]
+    for field in required_fields:
+        if field in data:
+            clients[client_id][field] = data[field]
+    return jsonify({
+        "message": "Client data has been updated"
+    }), 200
+
 if __name__ == '__main__':
     app.run(debug=True, host='127.0.0.1', port=3000)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
