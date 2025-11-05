@@ -30,34 +30,14 @@ class TestClientPositive:
         client_id = data["client_id"]
         assert client_id > 0
 
-        response = requests.get(base_url)
-        assert response.status_code == 200
-        all_clients = response.json()
-
-        assert str(client_id) in all_clients
-        data_client = all_clients[str(client_id)]
-        validate(data_client, client_schema)
-        assert client["name"] == data_client["name"]
-        assert client["age"] == data_client["age"]
-        assert client["tel"] == data_client["tel"]
-
-
-
-    def test_get_client_id(self):
-        new_client = {"name": "Vova", "age": 40, "tel": "8(495)123-50-90"}
-        response = requests.post(base_url, json=new_client)
-        assert response.status_code == 201
-        data = response.json()
-        client_id = data["client_id"]
-
         url = f"{base_url}/{client_id}"
         response = requests.get(url)
+        data_client = response.json()
+
         assert response.status_code == 200
-        new_data_client = response.json()
-        validate(new_data_client, client_schema)
-        assert new_client["name"] == new_data_client["name"]
-        assert new_client["age"] == new_data_client["age"]
-        assert new_client["tel"] == new_data_client["tel"]
+        validate(data_client, client_schema)
+        assert client == data_client
+
 
 
     def test_delete_client(self):
@@ -69,12 +49,10 @@ class TestClientPositive:
 
         url = f"{base_url}/{client_id}"
         response = requests.delete(url)
-        assert response.status_code == 200
-        print(response.json())
+        assert response.status_code == 204
 
         response = requests.get(url)
         assert response.status_code == 404
-        print(response.json())
 
 
     def test_get_clients(self):
@@ -104,15 +82,14 @@ class TestClientPositive:
         url = f"{base_url}/{client_id}"
         new_client = {"name": "Sara", "age": 18, "tel": "8(495)123-45-67"}
         response = requests.put(url, json=new_client)
-        assert response.status_code == 200
+        assert response.status_code == 201
 
         response = requests.get(url)
         assert response.status_code == 200
         data = response.json()
         validate(data, client_schema)
-        assert data["name"] == new_client["name"]
-        assert data["age"] == new_client["age"]
-        assert data["tel"] == new_client["tel"]
+        assert data == new_client
+
 
 
     @pytest.mark.parametrize("new_data_client", [
@@ -135,9 +112,14 @@ class TestClientPositive:
         data = response.json()
         validate(data, client_schema)
 
+        for key, value in base_client.items():
+            if key not in new_data_client:
+                assert data[key] == value
+
         for key, value in new_data_client.items():
             assert key in data
             assert data[key] == value
+
 
 
 class TestClientNegative:
@@ -170,33 +152,32 @@ class TestClientNegative:
         response = requests.delete(url)
         assert response.status_code == 404
 
-    @pytest.mark.parametrize( "client_id, client",
-        [(0, {"name": "Alice", "age": 18, "tel": "8(495)123-45-67"}),
-        (-1, {"name": "Alice", "age": 18, "tel": "8(495)123-45-67"}),
-        ("abc", {"name": "Alice", "age": 18, "tel": "8(495)123-45-67"}),
-        (None, {"name": "Alice", "age": 18, "tel": "8(495)123-45-67"}),
-        (1, {"age": 18, "tel": "8(495)123-45-67"}),
-        (1, {"age": 18, "tel": "8(495)123-45-67"}),
-        (1, {"name": "Alice", "age": 18, "tel": "8(495)123-45-67", "city": "Moscow"}),
-        (1, {"city": "Alice", "apple": 19, "table": "8(495)123-45-67"})]
+    @pytest.mark.parametrize( "client_id, client, status_code",
+        [(0, {"name": "Alice", "age": 18, "tel": "8(495)123-45-67"}, 404),
+        (-1, {"name": "Alice", "age": 18, "tel": "8(495)123-45-67"}, 404),
+        ("abc", {"name": "Alice", "age": 18, "tel": "8(495)123-45-67"}, 404),
+        (None, {"name": "Alice", "age": 18, "tel": "8(495)123-45-67"}, 404),
+        (1, {"age": 18, "tel": "8(495)123-45-67"}, 400),
+        (1, {"name": "Alice", "age": 18, "tel": "8(495)123-45-67", "city": "Moscow"}, 400),
+        (1, {"city": "Alice", "apple": 19, "table": "8(495)123-45-67"}, 400)]
     )
-    def test_negative_put_client(self, client_id, client):
+    def test_negative_put_client(self, client_id, client, status_code):
         url = f"{base_url}/{client_id}"
         response = requests.put(url, json=client)
         print(response)
-        assert response.status_code in [404, 400]
+        assert response.status_code == status_code
 
-    @pytest.mark.parametrize( "client_id, client",
-        [(0, {"name": "Alice", "age": 18, "tel": "8(495)123-45-67"}),
-        (-1, {"name": "Alice", "age": 18, "tel": "8(495)123-45-67"}),
-        ("abc", {"name": "Alice", "age": 18, "tel": "8(495)123-45-67"}),
-        (None, {"name": "Alice", "age": 18, "tel": "8(495)123-45-67"}),
-        (1, { "age": 17, "tel": "9(495)123-45-67"}),
-        (1, {"name": "Alice", "age": 18, "tel": "8(495)123-45-67", "city": "Moscow"}),
-        (1, {"city": "Alice", "apple": 19})]
+    @pytest.mark.parametrize( "client_id, client, status_code",
+        [(0, {"name": "Alice", "age": 18, "tel": "8(495)123-45-67"}, 404),
+        (-1, {"name": "Alice", "age": 18, "tel": "8(495)123-45-67"}, 404),
+        ("abc", {"name": "Alice", "age": 18, "tel": "8(495)123-45-67"}, 404),
+        (None, {"name": "Alice", "age": 18, "tel": "8(495)123-45-67"}, 404),
+        (1, { "age": 17, "tel": "9(495)123-45-67"}, 400),
+        (1, {"name": "Alice", "age": 18, "tel": "8(495)123-45-67", "city": "Moscow"}, 400),
+        (1, {"city": "Alice", "apple": 19}, 400)]
     )
-    def test_negative_patch_client(self, client_id, client):
+    def test_negative_patch_client(self, client_id, client, status_code):
         url = f"{base_url}/{client_id}"
         response = requests.patch(url, json=client)
         print(response)
-        assert response.status_code in [404, 400]
+        assert response.status_code == status_code

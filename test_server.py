@@ -67,7 +67,7 @@ def delete_client(client_id):
     client = clients.get(client_id)
     if client:
         del clients[client_id]
-        return jsonify({"message": "The client has been deleted"}), 200
+        return jsonify({"message": "The client has been deleted"}), 204
     else:
         return jsonify({"error": "There is no client with this ID"}), 404
 
@@ -94,7 +94,7 @@ def update_client(client_id):
     })
     return jsonify({
         "message": "Client has been updated successfully",
-    }), 200
+    }), 201
 
 
 @app.route('/clients/<int:client_id>', methods=['PATCH'])
