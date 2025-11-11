@@ -4,6 +4,7 @@ from jsonschema import validate, ValidationError
 app = Flask(__name__)
 
 clients = {}
+
 client_schema = {
       "type": "object",
       "properties": {
@@ -21,18 +22,20 @@ client_patch_schema = {
       "minProperties": 1,
       "additionalProperties": False
     }
-messages_negative_create = {
-    "type": "Invalid data type",
-    "required": "Required field is missing",
-    "pattern": "Incorrect data format",
-    "minimum": "You must be 18 years old or older",
-    "additionalProperties": "There are extra fields"
-}
-messages_negative_patch = {
-    "type": "Invalid data type",
-    "pattern": "Incorrect data format",
-    "minimum": "You must be 18 years old or older",
-    "additionalProperties": "There are extra fields"
+messages_negative = {
+    "create": {
+        "type": "Invalid data type",
+        "required": "Required field is missing",
+        "pattern": "Incorrect data format",
+        "minimum": "You must be 18 years old or older",
+        "additionalProperties": "There are extra fields"
+    },
+    "patch": {
+        "type": "Invalid data type",
+        "pattern": "Incorrect data format",
+        "minimum": "You must be 18 years old or older",
+        "additionalProperties": "There are extra fields"
+    }
 }
 
 @app.route('/clients', methods=['GET'])
@@ -46,7 +49,7 @@ def create_client():
         validate(data, client_schema)
     except ValidationError as e:
         type_value = str(e.validator)
-        message = messages_negative_create[type_value]
+        message = messages_negative["create"][type_value]
         return jsonify({"Validation error": message}), 400
 
     if clients:
@@ -83,15 +86,12 @@ def update_client(client_id):
     if not client:
         return jsonify({"error": "There is no client with this ID"}), 404
 
-    if not request.is_json:
-        return jsonify({"error": "Request must be in JSON format"}), 400
-
     data = request.json
     try:
-        validate(data, client_patch_schema)
+        validate(data, client_schema)
     except ValidationError as e:
         type_value = str(e.validator)
-        message = messages_negative_create[type_value]
+        message = messages_negative["create"][type_value]
         return jsonify({"error": message}), 400
 
     clients[client_id].update({
@@ -114,7 +114,7 @@ def patch_client(client_id):
         validate(data, client_patch_schema)
     except ValidationError as e:
         type_value = str(e.validator)
-        message = messages_negative_patch[type_value]
+        message = messages_negative["patch"][type_value]
         return jsonify({"error": message}), 400
 
     required_fields = ["name", "age", "tel"]
