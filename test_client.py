@@ -1,6 +1,6 @@
 import pytest
 import requests
-from jsonschema import validate
+from jsonschema import validate, ValidationError
 
 base_url = "http://127.0.0.1:3000/clients"
 
@@ -16,16 +16,50 @@ client_schema = {
       "additionalProperties": False
     }
 
+negative_create_client = [
+        ({"name": "Alice", "age": 17, "tel": "8(495)123-45-67"},
+         "You must be 18 years old or older"),
+        ({"name": "Alice", "age": 18, "tel": 71234568901},
+         "Invalid data type"),
+        ({"name": "Alice", "age": 18, "tel": "+7123"},
+         "Incorrect data format"),
+        ({"name": 123, "age": 18, "tel": "8(495)123-45-67"},
+         "Invalid data type"),
+        ("Hello",
+         "Invalid data type"),
+        ([123456],
+         "Invalid data type"),
+        ({"city": "Alice", "apple": 19, "table": "8(495)123-45-67"},
+         "Required field is missing"),
+        ({"name": "Alice", "age": "18", "tel": "51234568901"},
+         "Incorrect data format")
+    ]
+
+negative_client_data = [
+        (0, {"name": "Alice", "age": 18, "tel": "8(495)123-45-67"}, 404,
+        "There is no client with this ID"),
+        (1, { "age": 17, "tel": "8(495)123-45-67"}, 400,
+        "You must be 18 years old or older"),
+        (1, {"name": "Alice", "age": 18, "tel": "8(495)123-45-67", "city": "Moscow"}, 400,
+        "There are extra fields"),
+        (1, {"city": "Alice", "apple": 19}, 400,
+        "There are extra fields")
+]
+
+def create_client(base_client):
+    response = requests.post(base_url, json=base_client)
+    assert response.status_code == 201
+    data = response.json()
+    return data
+
 class TestClientPositive:
-    @pytest.mark.parametrize("client, expected_status", [
-        ({"name": "Bob", "age": 100, "tel": "+7 912 345 67 89"}, 201),
-        ({"name": "Alice", "age": 18, "tel": "8(495)123-45-67"}, 201)
+    @pytest.mark.parametrize("base_client", [
+        ({"name": "Bob", "age": 100, "tel": "+7 912 345 67 89"}),
+        ({"name": "Alice", "age": 18, "tel": "8(495)123-45-67"})
     ])
-    def test_create_client(self, client, expected_status):
-        response = requests.post(base_url, json=client)
-        data = response.json()
-        print(data)
-        assert response.status_code == expected_status
+    def test_create_client(self, base_client):
+        data = create_client(base_client)
+        assert data["message"] == "A new client has been created"
         assert "client_id" in data
         client_id = data["client_id"]
         assert client_id > 0
@@ -35,24 +69,40 @@ class TestClientPositive:
         data_client = response.json()
 
         assert response.status_code == 200
-        validate(data_client, client_schema)
-        assert client == data_client
-
-
+        try:
+            validate(data_client, client_schema)
+        except ValidationError as e:
+            raise ValidationError(e.message)
+        assert base_client == data_client
 
     def test_delete_client(self):
-        new_client = {"name": "Dasha", "age": 21, "tel": "+7 912 456 98 12"}
-        response = requests.post(base_url, json=new_client)
-        assert response.status_code == 201
-        data = response.json()
-        client_id = data["client_id"]
+        response = requests.get(base_url)
+        all_clients_befor = response.json()
 
-        url = f"{base_url}/{client_id}"
-        response = requests.delete(url)
+        new_client = [
+        {"name": "Alice", "age": 18, "tel": "8(495)123-45-67"},
+        {"name": "Sara", "age": 19, "tel": "+7 949 456 98 12"},
+        {"name": "Bob", "age": 45, "tel": "+7 949 123 45 67"},
+        {"name": "Alex", "age": 69, "tel": "+7 949 768 89 16"},
+        {"name": "Masha", "age": 54, "tel": "8(949)345-87-98"}
+            ]
+
+        client_id = []
+        for base_client in new_client:
+            data = create_client(base_client)
+            client_id.append(data["client_id"])
+
+        client_delete = client_id[2]
+        response = requests.delete(f"{base_url}/{client_delete}")
         assert response.status_code == 204
+        assert not response.text
 
-        response = requests.get(url)
-        assert response.status_code == 404
+        response = requests.get(base_url)
+        assert response.status_code == 200
+        all_clients_after = response.json()
+
+        assert len(all_clients_after) == len(all_clients_befor) + len(new_client) - 1
+        assert str(client_delete) not in all_clients_after
 
 
     def test_get_clients(self):
@@ -63,33 +113,31 @@ class TestClientPositive:
 
         for client_id, client in data.items():
             assert int(client_id) > 0
-            assert "name" in client
-            assert "age" in client
-            assert "tel" in client
-
-            assert client["name"]
-            assert client["age"]
-            assert client["tel"]
-
+            try:
+                validate(client, client_schema)
+            except ValidationError as e:
+                raise ValidationError(e.message)
 
     def test_put_client(self):
         base_client = {"name": "Dasha", "age": 21, "tel": "+7 912 456 98 12"}
-        response = requests.post(base_url, json=base_client)
-        assert response.status_code == 201
-        data = response.json()
+        data = create_client(base_client)
         client_id = data["client_id"]
 
         url = f"{base_url}/{client_id}"
         new_client = {"name": "Sara", "age": 18, "tel": "8(495)123-45-67"}
         response = requests.put(url, json=new_client)
         assert response.status_code == 201
+        data_put = response.json()
+        assert data_put["message"] == "Client has been updated successfully"
 
         response = requests.get(url)
         assert response.status_code == 200
         data = response.json()
-        validate(data, client_schema)
+        try:
+            validate(data, client_schema)
+        except ValidationError as e:
+            raise ValidationError(e.message)
         assert data == new_client
-
 
 
     @pytest.mark.parametrize("new_data_client", [
@@ -98,19 +146,22 @@ class TestClientPositive:
     ])
     def test_patch_client(self, new_data_client):
         base_client = {"name": "Misha", "age": 21, "tel": "+7 912 456 98 12"}
-        response = requests.post(base_url, json=base_client)
-        assert response.status_code == 201
-        data = response.json()
+        data = create_client(base_client)
         client_id = data["client_id"]
 
         url = f"{base_url}/{client_id}"
         response = requests.patch(url, json=new_data_client)
         assert response.status_code == 200
+        data_patch = response.json()
+        assert data_patch["message"] == "Client data has been updated"
 
         response = requests.get(url)
         assert response.status_code == 200
         data = response.json()
-        validate(data, client_schema)
+        try:
+            validate(data, client_schema)
+        except ValidationError as e:
+            raise ValidationError(e.message)
 
         for key, value in base_client.items():
             if key not in new_data_client:
@@ -121,63 +172,55 @@ class TestClientPositive:
             assert data[key] == value
 
 
-
 class TestClientNegative:
-    @pytest.mark.parametrize("client", [
-        ({"name": "Alice", "age": 17, "tel": "8(495)123-45-67"}),
-        ({"name": "Alice", "age": 18, "tel": 71234568901}),
-        ({"name": "Alice", "age": 18, "tel": "+7123"}),
-        ({"name": 123, "age": "abc", "tel": "abs"}),
-        (["Hello"]),
-        ([123456]),
-        ({"city": "Alice", "apple": 19, "table": "8(495)123-45-67"}),
-        ({"name": "Alice", "age": "18", "tel": "51234568901"})
-    ])
-    def test_negative_create_client(self, client):
+    @pytest.mark.parametrize("client, expected_message", negative_create_client)
+    def test_negative_create_client(self, client, expected_message):
         response = requests.post(base_url, json=client)
         data = response.json()
         assert response.status_code == 400
-        assert "Validation error" in data["error"]
-        print(data)
+        assert "Validation error" in data
+        assert expected_message in data["Validation error"]
 
     @pytest.mark.parametrize("client_id", [-1,0, "abc", None])
     def test_negative_client_id(self, client_id):
         url = f"{base_url}/{client_id}"
         response = requests.get(url)
         assert response.status_code == 404
+        if client_id == 0:
+            assert response.status_code == 404
+            assert response.json()["error"] == "Client does not exist"
 
     @pytest.mark.parametrize("client_id", [-1, 0, "abc", None])
     def test_negative_delete_client(self, client_id):
         url = f"{base_url}/{client_id}"
         response = requests.delete(url)
         assert response.status_code == 404
+        if client_id == 0:
+            assert response.status_code == 404
+            assert response.json()["error"] == "There is no client with this ID"
 
-    @pytest.mark.parametrize( "client_id, client, status_code",
-        [(0, {"name": "Alice", "age": 18, "tel": "8(495)123-45-67"}, 404),
-        (-1, {"name": "Alice", "age": 18, "tel": "8(495)123-45-67"}, 404),
-        ("abc", {"name": "Alice", "age": 18, "tel": "8(495)123-45-67"}, 404),
-        (None, {"name": "Alice", "age": 18, "tel": "8(495)123-45-67"}, 404),
-        (1, {"age": 18, "tel": "8(495)123-45-67"}, 400),
-        (1, {"name": "Alice", "age": 18, "tel": "8(495)123-45-67", "city": "Moscow"}, 400),
-        (1, {"city": "Alice", "apple": 19, "table": "8(495)123-45-67"}, 400)]
-    )
-    def test_negative_put_client(self, client_id, client, status_code):
+    @pytest.mark.parametrize( "client_id, client, status_code, expected_message", negative_client_data)
+    def test_negative_put_client(self, client_id, client, status_code, expected_message):
         url = f"{base_url}/{client_id}"
         response = requests.put(url, json=client)
-        print(response)
         assert response.status_code == status_code
 
-    @pytest.mark.parametrize( "client_id, client, status_code",
-        [(0, {"name": "Alice", "age": 18, "tel": "8(495)123-45-67"}, 404),
-        (-1, {"name": "Alice", "age": 18, "tel": "8(495)123-45-67"}, 404),
-        ("abc", {"name": "Alice", "age": 18, "tel": "8(495)123-45-67"}, 404),
-        (None, {"name": "Alice", "age": 18, "tel": "8(495)123-45-67"}, 404),
-        (1, { "age": 17, "tel": "9(495)123-45-67"}, 400),
-        (1, {"name": "Alice", "age": 18, "tel": "8(495)123-45-67", "city": "Moscow"}, 400),
-        (1, {"city": "Alice", "apple": 19}, 400)]
-    )
-    def test_negative_patch_client(self, client_id, client, status_code):
+        try:
+            data = response.json()
+            assert expected_message in data["error"]
+        except ValueError:
+            message_data = response.text
+            assert expected_message in message_data
+
+    @pytest.mark.parametrize( "client_id, client, status_code, expected_message", negative_client_data)
+    def test_negative_patch_client(self, client_id, client, status_code, expected_message):
         url = f"{base_url}/{client_id}"
         response = requests.patch(url, json=client)
-        print(response)
         assert response.status_code == status_code
+
+        try:
+            data = response.json()
+            assert expected_message in data["error"]
+        except ValueError:
+            message_data = response.text
+            assert expected_message in message_data

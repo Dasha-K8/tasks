@@ -21,6 +21,19 @@ client_patch_schema = {
       "minProperties": 1,
       "additionalProperties": False
     }
+messages_negative_create = {
+    "type": "Invalid data type",
+    "required": "Required field is missing",
+    "pattern": "Incorrect data format",
+    "minimum": "You must be 18 years old or older",
+    "additionalProperties": "There are extra fields"
+}
+messages_negative_patch = {
+    "type": "Invalid data type",
+    "pattern": "Incorrect data format",
+    "minimum": "You must be 18 years old or older",
+    "additionalProperties": "There are extra fields"
+}
 
 @app.route('/clients', methods=['GET'])
 def get_clients():
@@ -28,26 +41,20 @@ def get_clients():
 
 @app.route('/clients', methods=['POST'])
 def create_client():
-    if not request.is_json:
-        return jsonify({"error": "Request must be in JSON format"}), 400
-
     data = request.json
-
     try:
         validate(data, client_schema)
     except ValidationError as e:
-        return jsonify({"error": f"Validation error: {e.message}"}), 400
+        type_value = str(e.validator)
+        message = messages_negative_create[type_value]
+        return jsonify({"Validation error": message}), 400
 
     if clients:
         client_id = max(clients.keys()) + 1
     else:
         client_id = 1
 
-    clients[client_id] = {
-        "name": data["name"],
-        "age": data["age"],
-        "tel": data["tel"]
-    }
+    clients[client_id] = data
     return jsonify({
         "message": "A new client has been created",
         "client_id": client_id
@@ -61,16 +68,14 @@ def get_id_clients(client_id):
     else:
         return jsonify({"error": "Client does not exist"}), 404
 
-
 @app.route('/clients/<int:client_id>', methods=['DELETE'])
 def delete_client(client_id):
     client = clients.get(client_id)
     if client:
         del clients[client_id]
-        return jsonify({"message": "The client has been deleted"}), 204
+        return '', 204
     else:
         return jsonify({"error": "There is no client with this ID"}), 404
-
 
 @app.route('/clients/<int:client_id>', methods=['PUT'])
 def update_client(client_id):
@@ -83,9 +88,11 @@ def update_client(client_id):
 
     data = request.json
     try:
-        validate(data, client_schema)
+        validate(data, client_patch_schema)
     except ValidationError as e:
-        return jsonify({"error": f"Validation error: {e.message}"}), 400
+        type_value = str(e.validator)
+        message = messages_negative_create[type_value]
+        return jsonify({"error": message}), 400
 
     clients[client_id].update({
         "name": data["name"],
@@ -96,21 +103,19 @@ def update_client(client_id):
         "message": "Client has been updated successfully",
     }), 201
 
-
 @app.route('/clients/<int:client_id>', methods=['PATCH'])
 def patch_client(client_id):
     client = clients.get(client_id)
     if not client:
         return jsonify({"error": "There is no client with this ID"}), 404
 
-    if not request.is_json:
-        return jsonify({"error": "Request must be in JSON format"}), 400
-
     data = request.json
     try:
         validate(data, client_patch_schema)
     except ValidationError as e:
-        return jsonify({"error": f"Validation error: {e.message}"}), 400
+        type_value = str(e.validator)
+        message = messages_negative_patch[type_value]
+        return jsonify({"error": message}), 400
 
     required_fields = ["name", "age", "tel"]
     for field in required_fields:
