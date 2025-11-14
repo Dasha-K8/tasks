@@ -16,48 +16,26 @@ client_schema = {
       "additionalProperties": False
     }
 
-negative_client = {
-    "create": [
-        ({"name": "Alice", "age": 17, "tel": "8(495)123-45-67"},
-         "You must be 18 years old or older"),
-        ({"name": "Alice", "age": 18, "tel": 71234568901},
-         "Invalid data type"),
-        ({"name": "Alice", "age": 18, "tel": "+7123"},
-         "Incorrect data format"),
-        ({ "age": 18, "tel": "8(495)123-45-67"},
+negative_clients = [
+    (0, {"name": "Alice", "age": 17, "tel": "8(495)123-45-67"}, 404,
+        "There is no client with this ID"),
+    (1, {"name": "Alice", "age": 18, "tel": 71234568901}, 400,
+        "Invalid data type"),
+    (1, {"name": "Alice", "age": 18, "tel": "+7123"}, 400,
+        "Incorrect data format"),
+    (2, {"name": "Dasha", "tel": "8(495)123-45-67"}, 400,
         "Required field is missing"),
-        ({"name": 123, "age": 18, "tel": "8(495)123-45-67"},
-         "Invalid data type"),
-        ("Hello",
-         "Invalid data type"),
-        ([123456],
-         "Invalid data type"),
-        ({"city": "Alice", "apple": 19, "table": "8(495)123-45-67"},
-         "Required field is missing"),
-        ({"name": "Alice", "age": "18", "tel": "51234568901"},
-         "Incorrect data format")
-    ],
-    "put": [
-        (0, {"name": "Alice", "age": 18, "tel": "8(495)123-45-67"}, 404,
-        "There is no client with this ID"),
-        (1, {"name": "Alice", "age": 17, "tel": "8(495)123-45-67"}, 400,
-        "You must be 18 years old or older"),
-        (1, {"name": "Alice", "age": 18, "tel": "8(495)123-45-67", "city": "Moscow"}, 400,
-        "There are extra fields"),
-        (1, { "age": 18, "tel": "8(495)123-45-67"}, 400,
-        "Required field is missing")
-    ],
-    "patch": [
-        (0, {"name": "Alice", "age": 18, "tel": "8(495)123-45-67"}, 404,
-        "There is no client with this ID"),
-        (1, { "age": 17, "tel": "8(495)123-45-67"}, 400,
-        "You must be 18 years old or older"),
-        (1, {"name": "Alice", "age": 18, "tel": "8(495)123-45-67", "city": "Moscow"}, 400,
-        "There are extra fields"),
-        (1, {"city": "Alice", "apple": 19}, 400,
-        "There are extra fields")
-    ]
-}
+    (1, {"name": 123, "age": 18, "tel": "8(495)123-45-67"}, 400,
+        "Invalid data type"),
+    (1, "Hello", 400,
+        "Invalid data type"),
+    (1, [123456], 400,
+        "Invalid data type"),
+    (3, {"city": "Dasha", "apple": 19, "table": "8(495)123-45-67"}, 400,
+        "Required field is missing"),
+    (1, {"name": "Alice", "age": "18", "tel": "51234568901"}, 400,
+        "Incorrect data format")
+]
 
 def create_client(base_client):
     response = requests.post(base_url, json=base_client)
@@ -185,8 +163,10 @@ class TestClientPositive:
             assert data[key] == value
 
 class TestClientNegative:
-    @pytest.mark.parametrize("client, expected_message", negative_client["create"])
-    def test_negative_create_client(self, client, expected_message):
+    @pytest.mark.parametrize("client_id, client, status_code, expected_message", negative_clients)
+    def test_negative_create_client(self, client_id, client, status_code, expected_message):
+        if client_id == 0:
+            expected_message = "You must be 18 years old or older"
         response = requests.post(base_url, json=client)
         data = response.json()
         assert response.status_code == 400
@@ -211,7 +191,7 @@ class TestClientNegative:
             assert response.status_code == 404
             assert response.json()["error"] == "There is no client with this ID"
 
-    @pytest.mark.parametrize( "client_id, client, status_code, expected_message", negative_client["put"])
+    @pytest.mark.parametrize( "client_id, client, status_code, expected_message", negative_clients)
     def test_negative_put_client(self, client_id, client, status_code, expected_message):
         url = f"{base_url}/{client_id}"
         response = requests.put(url, json=client)
@@ -224,9 +204,15 @@ class TestClientNegative:
             message_data = response.text
             assert str(expected_message) in message_data
 
-    @pytest.mark.parametrize( "client_id, client, status_code, expected_message", negative_client["patch"])
+    @pytest.mark.parametrize( "client_id, client, status_code, expected_message", negative_clients)
     def test_negative_patch_client(self, client_id, client, status_code, expected_message):
         url = f"{base_url}/{client_id}"
+        if client_id == 2 and client["name"] == "Dasha":
+            client["tel"] = "5(495)123-45-67"
+            expected_message = "Incorrect data format"
+        if client_id == 3 and client["city"] == "Dasha":
+            expected_message = "There are extra fields"
+
         response = requests.patch(url, json=client)
         assert response.status_code == status_code
 
@@ -236,3 +222,5 @@ class TestClientNegative:
         except ValueError:
             message_data = response.text
             assert str(expected_message) in message_data
+
+
