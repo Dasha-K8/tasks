@@ -33,6 +33,8 @@ negative_clients = [
         "Invalid data type"),
     (3, {"city": "Dasha", "apple": 19, "table": "8(495)123-45-67"}, 400,
         "Required field is missing"),
+    (1, {"name": "Alice", "age": "18", "tel": "8(495)123-45-67", "city": "Moscow"}, 400,
+        "There are extra fields"),
     (1, {"name": "Alice", "age": "18", "tel": "51234568901"}, 400,
         "Incorrect data format")
 ]
