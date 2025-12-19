@@ -1,48 +1,45 @@
 import pytest
-from selenium.webdriver.support.ui import Select
-from selenium.webdriver.common.by import By
-from selenium.webdriver.common.action_chains import ActionChains
-from pages.page import (
-    open_home_page,
-    authentication,
-    open_women_section,
-    wait_clickable,
-    wait_visibility,
-    wait_present_in_element
-)
+from SeleniumProject.pages.home_page import HomePage
 
-SEARCH = (By.ID, "chrome-search")
-SEARCH_BUTTON = (By.CSS_SELECTOR, "button[type='submit']")
-BANNER_TEXT = (By.CLASS_NAME, "wrapper_Qlsg1")
-NEGATIVE_MESSAGE = (By.CLASS_NAME, "hgdilB1r9wGHTwyS5Aow")
-BRAND_FILTER = (By.XPATH, "//button[.//span[text()='Brand']]")
-SEARCH_INPUT = (By.XPATH, '//*[@id="searchBox"]')
-NIKE_ELEMENT = (By.XPATH, "//div[contains(@class,'value') and contains(., 'Nike')]")
-EXIT_CLICK = (By.CSS_SELECTOR, 'section#category-banner-wrapper')
-COUNT_PRODUCT_SELECTOR = (By.XPATH, '//*[@id="plp"]/div/div/div[2]/div/p')
-PRODUCT = (By.XPATH, '//*[@id="pta-product-208575690-0"]')
-PRODUCT_BUTTON = (By.XPATH, '//*[@id="pta-product-208575690-4"]')
-COLOUR_BROWN = (By.XPATH, './/a[@aria-label="BROWN"]')
-SIZE_SELECT = (By.ID, "variantSelector")
-ADD_BUTTON = (By.CSS_SELECTOR, '[data-testid="add-button"]')
+search_input = "shoes"
+size_text = "UK 9.5"
 
-def test_key_text(browser):
-    open_home_page(browser)
-    key_text = "The biggest brands"
-    element = browser.find_element(By.XPATH, f"//*[contains(., '{key_text}')]")
-    assert key_text in element.text
+def authentication(browser,email):
+    home = HomePage(browser)
+    home.open_home_page()
+    auth = home.join()
+    text = auth.form_text()
+    assert "Hi friend!" in text
+    assert "Enter your email to sign in or join" in text
+    auth.sign_in(email)
+    return auth
 
+def open_men_section(browser):
+    home = HomePage(browser)
+    home.open_home_page()
+    men = home.open_men_section()
+    assert "/men/" in browser.current_url
+    men.click_shop_now()
+    men.deliver_and_close()
+    return men
+
+def test_home(browser):
+    home = HomePage(browser)
+    home.open_home_page()
+    tittle_text = home.tittle_text()
+    assert "The biggest brands" in tittle_text
 
 def test_search(browser):
-    open_home_page(browser)
-    wait_visibility(browser, SEARCH).send_keys("shoes")
-    browser.find_element(*SEARCH_BUTTON).click()
-    banner_text = browser.find_element(*BANNER_TEXT)
-    assert "Your search results for:" in banner_text.text
-    assert "Shoes" in banner_text.text
+    home = HomePage(browser)
+    home.open_home_page()
+    search_page = home.search(search_input)
+    banner = search_page.banner_text()
+    assert "Your search results for" in banner
+    assert "Shoes" in banner
+
 
 @pytest.mark.parametrize("email", ["pythonSelenium@gmail.com"])
-def test_positive_join(browser, email):
+def test_positive_auth(browser, email):
     authentication(browser, email)
 
 
@@ -53,26 +50,22 @@ def test_positive_join(browser, email):
     (" ", "Oops! You need to type your email here")
 ])
 def test_negative_sign_in(browser, email, expected_message):
-    authentication(browser, email)
-    negative_element = browser.find_element(*NEGATIVE_MESSAGE)
-    assert negative_element.text == expected_message
+    auth = authentication(browser, email)
+    assert expected_message == auth.error_text()
+
 
 
 def test_add_product_to_cart(browser):
-    browser = open_women_section(browser)
-    wait_clickable(browser, BRAND_FILTER).click()
-    wait_visibility(browser, SEARCH_INPUT).send_keys("Nike")
-    browser.find_element(*NIKE_ELEMENT).click()
-    browser.find_element(*EXIT_CLICK).click()
-    wait_present_in_element(browser, COUNT_PRODUCT_SELECTOR, "17 styles found")
-    product = wait_clickable(browser, PRODUCT)
-    ActionChains(browser).move_to_element(product).click().perform()
-    assert "Nike Zoom Vomero 5 trainers in black and pink" in browser.page_source
-    browser.find_element(*COLOUR_BROWN).click()
-    assert 'Nike Zoom Vomero 5 trainers in brown' in browser.page_source
-    size_select = browser.find_element(*SIZE_SELECT)
-    select = Select(size_select)
-    select.select_by_visible_text("UK 9.5")
-    browser.find_element(*ADD_BUTTON). click()
+   men = open_men_section(browser)
+   men.filter_nike()
+   men.count_products_text("1 style found")
+   product = men.open_product()
+   product_text = product.get_product_text()
+   assert "Nike Zoom Vomero 5 trainers in black and pink" in product_text
+   product.choose_color_brown()
+   product_text = product.get_product_text()
+   assert "Nike Zoom Vomero 5 trainers in brown" in product_text
+   product.select_size(size_text)
+   product.click_add_to_cart()
 
 
